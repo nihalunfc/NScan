@@ -1,0 +1,37 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r train/requirements.txt
+      - name: Unit tests
+        run: python -m pytest -q tests
+      - name: Python/JavaScript measurement parity
+        run: |
+          python tests/parity_dump.py /tmp/parity.json
+          node tests/test_parity.mjs /tmp/parity.json
+      - name: Pipeline smoke test on synthetic SPIDER-shaped data
+        working-directory: train
+        run: |
+          python ../tests/make_fake_spider.py /tmp/fake/raw 30
+          python prepare_spider.py --raw /tmp/fake/raw --out /tmp/fake/cache --no-download
+          mkdir -p /tmp/fake/out
+          python train_seg.py --cache /tmp/fake/cache --out /tmp/fake/out --minutes 0.5
+          python train_grade.py --cache /tmp/fake/cache --out /tmp/fake/out --minutes 0.2
+          python build_norms.py --cache /tmp/fake/cache --out /tmp/fake/out
+          python ../tests/check_onnx.py /tmp/fake/out
