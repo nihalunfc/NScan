@@ -1,10 +1,10 @@
-# N Scanning
+# NScan (N Scanning)
 
 Research project: AI that reads spine scans, reports what stands out at each level, measures how far the anatomy deviates from a reference, and asks for a better scan when the image is not good enough to read. Phase one is the spine, starting with lumbar MRI; CT and X-ray come next, then other body parts.
 
 > **Research software, not a medical device.** It has not been clinically validated and must not be used for diagnosis or treatment decisions.
 
-**Live prototype:** https://nihalunfc.github.io/n-scanning/ (runs entirely in the browser; images are never uploaded)
+**Live prototype:** https://nihalunfc.github.io/NScan/ (runs entirely in the browser; images are never uploaded)
 
 ## What is here
 
