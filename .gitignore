@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+train/data/
+train/out/
+web/vendor/
+web/models/*.onnx
+web/models/*.json
+web/samples/
+node_modules/
+.pytest_cache/

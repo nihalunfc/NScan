@@ -1,0 +1,72 @@
+name: Train models
+
+# Downloads SPIDER from Zenodo, trains the browser models on CPU, and publishes
+# them as assets of the "models-latest" release. The Pages workflow picks them up.
+on:
+  workflow_dispatch:
+    inputs:
+      seg_minutes:
+        description: Minutes for segmentation training
+        default: "200"
+      grade_minutes:
+        description: Minutes for disc grading training
+        default: "20"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: train
+  cancel-in-progress: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    defaults:
+      run:
+        working-directory: train
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+      - name: Cache SPIDER download
+        uses: actions/cache@v4
+        with:
+          path: train/data/raw
+          key: spider-zenodo-10159290
+      - name: Prepare data
+        run: python prepare_spider.py --raw data/raw --out data/cache
+      - name: Train segmentation
+        run: python train_seg.py --cache data/cache --out out --minutes ${{ inputs.seg_minutes }}
+      - name: Train disc grader
+        run: python train_grade.py --cache data/cache --out out --minutes ${{ inputs.grade_minutes }}
+      - name: Reference ranges and samples
+        run: |
+          python build_norms.py --cache data/cache --out out
+          python make_samples.py --cache data/cache --out out/samples
+          cp data/cache/manifest.json out/data_manifest.json
+          echo "{\"commit\": \"$GITHUB_SHA\", \"date\": \"$(date -u +%Y-%m-%d)\", \"run\": \"$GITHUB_RUN_ID\"}" > out/build.json
+      - name: Check exported models
+        run: python ../tests/check_onnx.py out
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view models-latest >/dev/null 2>&1 || gh release create models-latest --title "Trained models (latest)" --notes "Browser models trained by the Train models workflow on SPIDER (CC BY 4.0)."
+          cd out && tar czf samples.tgz samples
+          gh release upload models-latest *.onnx *.json samples.tgz --clobber
+      - name: Upload run outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: models
+          path: train/out
+      - name: Redeploy site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref ${{ github.ref_name }}

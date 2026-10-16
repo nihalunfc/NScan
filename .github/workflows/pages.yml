@@ -1,0 +1,59 @@
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Vendor runtime libraries
+        run: |
+          npm install --no-save --prefix /tmp/vendor onnxruntime-web@1.29.0 dicom-parser@1.8.21
+          mkdir -p web/vendor/ort
+          cp /tmp/vendor/node_modules/onnxruntime-web/dist/ort.wasm.min.js web/vendor/ort/
+          cp /tmp/vendor/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm web/vendor/ort/
+          cp /tmp/vendor/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs web/vendor/ort/
+          cp /tmp/vendor/node_modules/dicom-parser/dist/dicomParser.min.js web/vendor/
+      - name: Fetch trained models
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p web/models
+          if gh release view models-latest >/dev/null 2>&1; then
+            gh release download models-latest --dir web/models --clobber
+            tar xzf web/models/samples.tgz -C web && rm web/models/samples.tgz
+          else
+            echo "No trained models yet: the site will say so."
+          fi
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
