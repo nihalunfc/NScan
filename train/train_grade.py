@@ -28,7 +28,7 @@ def auc(y, p):
     return float((r[: len(pos)].sum() - len(pos) * (len(pos) + 1) / 2) / (len(pos) * len(neg)))
 
 
-def thresholds(y, p, ppv=0.7, npv=0.9):
+def thresholds(y, p, ppv=0.7, npv=0.9, sens=0.9):
     """Two cut-offs: call positive at/above t_hi, negative at/below t_lo, otherwise indeterminate."""
     y, p = np.asarray(y), np.asarray(p)
     cand = np.unique(np.round(p, 3))
@@ -44,7 +44,8 @@ def thresholds(y, p, ppv=0.7, npv=0.9):
         if t_hi is None and tp + fp >= 5 and tp / (tp + fp) >= ppv:
             t_hi = float(t)
         neg = p <= t
-        if neg.sum() >= 5 and ((y[neg] == 0).mean() >= npv):
+        # rule-out needs both a high NPV and few missed positives; NPV alone is trivially met for rare findings
+        if neg.sum() >= 5 and (y[neg] == 0).mean() >= npv and tp / max(tp + fn, 1) >= sens:
             t_lo = float(t)
     # No cut-off reaches the target PPV (rare findings): never call "likely", only uncertain/unlikely.
     if t_hi is None:
