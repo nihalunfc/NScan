@@ -46,7 +46,12 @@ def thresholds(y, p, ppv=0.7, npv=0.9):
         neg = p <= t
         if neg.sum() >= 5 and ((y[neg] == 0).mean() >= npv):
             t_lo = float(t)
-    if t_hi is None or t_lo is None or t_hi < t_lo:
+    # No cut-off reaches the target PPV (rare findings): never call "likely", only uncertain/unlikely.
+    if t_hi is None:
+        t_hi = 1.01
+    if t_lo is None:
+        t_lo = -0.01
+    if t_hi < t_lo:  # the bands overlap, so a single cut-off separates likely from unlikely
         t_lo = t_hi = best_j
     return {"t_lo": t_lo, "t_hi": t_hi, "youden": best_j}
 

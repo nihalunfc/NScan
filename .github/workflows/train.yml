@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       seg_minutes:
-        description: Minutes for segmentation training
+        description: Minutes for segmentation training (0 reuses the published segmentation model)
         default: "200"
       grade_minutes:
         description: Minutes for disc grading training
@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: train
@@ -43,7 +44,14 @@ jobs:
       - name: Prepare data
         run: python prepare_spider.py --raw data/raw --out data/cache
       - name: Train segmentation
-        run: python train_seg.py --cache data/cache --out out --minutes ${{ inputs.seg_minutes }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ inputs.seg_minutes }}" = "0" ]; then
+            mkdir -p out && gh release download models-latest -D out -p spine_seg.onnx -p seg_metrics.json -p quality.json
+          else
+            python train_seg.py --cache data/cache --out out --minutes ${{ inputs.seg_minutes }}
+          fi
       - name: Train disc grader
         run: python train_grade.py --cache data/cache --out out --minutes ${{ inputs.grade_minutes }}
       - name: Reference ranges and samples
